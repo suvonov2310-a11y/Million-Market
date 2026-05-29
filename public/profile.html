@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profil va Buyurtmalarim</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .toast { visibility: hidden; min-width: 250px; background-color: #333; color: #fff; text-align: center; border-radius: 8px; padding: 16px; position: fixed; z-index: 1000; left: 50%; bottom: 30px; transform: translateX(-50%); opacity: 0; transition: opacity 0.3s, bottom 0.3s; box-shadow: 0 10px 15px rgba(0,0,0,0.2); font-weight: bold;}
+        .toast.show { visibility: visible; bottom: 50px; opacity: 1; }
+        .toast.error { background-color: #ef4444; }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans min-h-screen flex flex-col">
+    <div id="toastBox" class="toast">Xabar</div>
+
+    <nav class="bg-white shadow-sm sticky top-0 z-40 border-b">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-2xl font-black text-blue-600 cursor-pointer" onclick="location.href='/'">MILLION</h1>
+            <button onclick="location.href='/'" class="text-gray-600 hover:text-blue-600 font-bold bg-gray-100 px-4 py-2 rounded-lg transition" id="backBtn">⬅ Asosiy sahifa</button>
+        </div>
+    </nav>
+
+    <div class="container mx-auto px-4 py-8 max-w-5xl flex-1 flex flex-col justify-center">
+        <div id="authSection" class="bg-white p-8 rounded-2xl shadow-sm border max-w-md mx-auto w-full block">
+            <div class="text-center mb-6">
+                <span class="text-5xl">👤</span>
+                <h2 id="authTitle" class="text-2xl font-black text-gray-900 mt-4">Tizimga Kirish</h2>
+                <p class="text-gray-500 text-sm mt-1" id="authSub">Xaridlarni boshqarish uchun kiring</p>
+            </div>
+            <div class="space-y-4">
+                <input type="text" id="authName" placeholder="Ism va Familiya" class="w-full border p-3 rounded-lg outline-none focus:border-blue-500 bg-gray-50 hidden">
+                <input type="text" id="authPhone" placeholder="Telefon raqam (+998...)" class="w-full border p-3 rounded-lg outline-none focus:border-blue-500 bg-gray-50">
+                <input type="password" id="authPass" placeholder="Parol" class="w-full border p-3 rounded-lg outline-none focus:border-blue-500 bg-gray-50">
+                <button onclick="handleAuth()" id="submitAuthBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition shadow-md">Tasdiqlash</button>
+            </div>
+            <p class="text-center text-sm text-gray-600 cursor-pointer hover:text-blue-600 mt-6 font-medium" onclick="toggleAuthMode()" id="authSwitch">Akkauntingiz yo'qmi? Ro'yxatdan o'ting</p>
+        </div>
+
+        <div id="cabinetSection" class="hidden grid-cols-1 md:grid-cols-3 gap-6 w-full">
+            <div class="md:col-span-1">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border text-center relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-full h-24 bg-blue-600"></div>
+                    <div class="w-24 h-24 bg-white rounded-full flex items-center justify-center text-blue-600 text-4xl font-bold mx-auto mb-4 relative z-10 border-4 border-gray-50 shadow">👤</div>
+                    <h2 id="profileName" class="text-xl font-bold text-gray-900">Ism</h2>
+                    <p id="profilePhone" class="text-sm text-gray-500 mb-6">+99890</p>
+                    <button onclick="logoutUser()" id="logoutBtn" class="w-full border-2 border-red-100 text-red-500 font-bold py-2.5 rounded-lg hover:bg-red-50 transition">Tizimdan chiqish</button>
+                </div>
+            </div>
+            
+            <div class="md:col-span-2 bg-white p-6 rounded-2xl shadow-sm border">
+                <h3 class="font-bold text-gray-900 mb-6 text-xl flex items-center gap-2 border-b pb-4" id="ordersTitle">🛍 Mening Buyurtmalarim</h3>
+                <div id="myOrdersList" class="space-y-5 max-h-[600px] overflow-y-auto pr-2"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isRegisterMode = false;
+        let userToken = localStorage.getItem('userToken');
+        let lang = localStorage.getItem('siteLang') || 'uz';
+
+        window.onload = () => { applyLang(); if(userToken) loadProfile(); };
+
+        function showToast(msg) {
+            const box = document.getElementById('toastBox'); box.innerText = msg; box.className = 'toast show error'; setTimeout(() => box.className = 'toast', 3000);
+        }
+
+        function applyLang() {
+            if(lang === 'ru') {
+                document.getElementById('backBtn').innerText = "⬅ На главную";
+                document.getElementById('authTitle').innerText = "Вход в систему";
+                document.getElementById('authSub').innerText = "Войдите для управления заказами";
+                document.getElementById('authName').placeholder = "Ваше имя";
+                document.getElementById('authPhone').placeholder = "Телефон (+998...)";
+                document.getElementById('authPass').placeholder = "Пароль";
+                document.getElementById('submitAuthBtn').innerText = "Подтвердить";
+                document.getElementById('authSwitch').innerText = "Нет аккаунта? Зарегистрироваться";
+                document.getElementById('logoutBtn').innerText = "Выйти из системы";
+                document.getElementById('ordersTitle').innerHTML = "🛍 Мои заказы";
+            }
+        }
+
+        function toggleAuthMode() { 
+            isRegisterMode = !isRegisterMode; 
+            document.getElementById('authTitle').innerText = lang==='uz' ? (isRegisterMode ? "Ro'yxatdan o'tish" : "Tizimga Kirish") : (isRegisterMode ? "Регистрация" : "Вход в систему"); 
+            document.getElementById('authName').classList.toggle('hidden', !isRegisterMode); 
+            document.getElementById('authSwitch').innerText = lang==='uz' ? (isRegisterMode ? "Akkauntingiz bormi? Kirish" : "Akkauntingiz yo'qmi? Ro'yxatdan o'ting") : (isRegisterMode ? "Есть аккаунт? Войти" : "Нет аккаунта? Зарегистрироваться"); 
+        }
+
+        async function handleAuth() {
+            const phone = document.getElementById('authPhone').value, pass = document.getElementById('authPass').value, name = document.getElementById('authName').value;
+            if(!phone || !pass || (isRegisterMode && !name)) return showToast(lang==='uz' ? "To'ldiring" : "Заполните");
+            try {
+                const res = await fetch(isRegisterMode ? '/api/auth/register' : '/api/auth/login', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(isRegisterMode ? { fullName: name, phone, password: pass } : { phone, password: pass }) });
+                const data = await res.json();
+                if(res.ok) { localStorage.setItem('userToken', data.token); localStorage.setItem('userName', data.fullName); localStorage.setItem('userPhoneNum', data.phone); userToken = data.token; loadProfile(); } else showToast(data.message);
+            } catch (err) { showToast("Xato"); }
+        }
+
+        async function loadProfile() {
+            document.getElementById('authSection').classList.replace('block', 'hidden');
+            document.getElementById('cabinetSection').classList.replace('hidden', 'grid');
+            document.getElementById('profileName').innerText = localStorage.getItem('userName');
+            document.getElementById('profilePhone').innerText = localStorage.getItem('userPhoneNum');
+            
+            const list = document.getElementById('myOrdersList'); list.innerHTML = `<p class='text-center text-sm mt-10 text-gray-500'>${lang==='uz'?'Yuklanmoqda...':'Загрузка...'}</p>`;
+            try {
+                const orders = await (await fetch('/api/my-orders', { headers: { 'Authorization': 'Bearer ' + userToken } })).json();
+                list.innerHTML = orders.length ? orders.map(o => {
+                    const statusColors = { 'Kutilmoqda': 'text-yellow-600 bg-yellow-50 border-yellow-200', 'Yetkazilmoqda': 'text-blue-600 bg-blue-50 border-blue-200', 'Bajarildi': 'text-green-600 bg-green-50 border-green-200', 'Bekor qilingan': 'text-red-500 bg-red-50 border-red-200' };
+                    
+                    // Rasmlar bilan mahsulotlar ruyxati
+                    const itemsHtml = o.cart.map(c => `
+                        <div class="flex items-center gap-3 bg-white p-2 rounded border mb-2 shadow-sm">
+                            <img src="${c.img}" class="w-12 h-12 object-cover rounded border">
+                            <div class="flex-1">
+                                <p class="text-sm font-bold text-gray-800 line-clamp-1">${c.name}</p>
+                                <p class="text-xs text-gray-500">${c.quantity} ${lang==='uz'?'ta':'шт'} x ${(c.price).toLocaleString()} s</p>
+                            </div>
+                            <b class="text-sm text-blue-600">${(c.price * c.quantity).toLocaleString()} s</b>
+                        </div>
+                    `).join('');
+
+                    return `
+                    <div class="border p-5 rounded-2xl bg-gray-50 shadow-sm transition hover:shadow-md">
+                        <div class="flex justify-between items-center mb-4 border-b pb-3">
+                            <div>
+                                <p class="text-xs text-gray-400 mb-1">${new Date(o.date).toLocaleDateString()} ${new Date(o.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                                <b class="text-xl text-gray-900">${o.totalSum.toLocaleString()} s</b> 
+                            </div>
+                            <span class="text-xs px-3 py-1.5 border rounded-lg font-bold uppercase tracking-wider ${statusColors[o.status] || 'text-gray-600 bg-white'}">${o.status}</span>
+                        </div>
+                        <div class="mb-2">
+                            ${itemsHtml}
+                        </div>
+                    </div>`;
+                }).join('') : `<p class='text-center text-gray-400 mt-10 font-bold'>${lang==='uz'?"Sizda hali xaridlar yo'q":"У вас пока нет покупок"}</p>`;
+            } catch (err) { list.innerHTML = "Xato"; }
+        }
+
+        function logoutUser() { localStorage.clear(); location.reload(); }
+    </script>
+</body>
+</html>

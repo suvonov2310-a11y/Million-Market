@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM - Million Market</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        .tab-content { display: none; animation: fadeIn 0.3s; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+        .toast { visibility: hidden; min-width: 250px; background-color: #10b981; color: #fff; text-align: center; border-radius: 8px; padding: 16px; position: fixed; z-index: 9999; right: 30px; bottom: 30px; transform: translateY(50px); opacity: 0; transition: all 0.3s; box-shadow: 0 10px 15px rgba(0,0,0,0.2); font-weight: bold;}
+        .toast.show { visibility: visible; transform: translateY(0); opacity: 1; }
+        .toast.error { background-color: #ef4444; }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans h-screen overflow-hidden flex relative">
+    <div id="toastBox" class="toast">Xabar</div>
+
+    <div id="reviewsModal" class="fixed inset-0 bg-black bg-opacity-70 z-50 hidden justify-center items-center p-4">
+        <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[85vh]">
+            <div class="p-5 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl">
+                <h3 class="font-bold text-gray-900 text-lg">Mijozlar Sharhlari</h3>
+                <button onclick="closeReviewsModal()" class="text-gray-400 hover:text-red-500 text-2xl font-bold">&times;</button>
+            </div>
+            <div id="adminReviewsList" class="p-5 flex-1 overflow-y-auto custom-scroll space-y-4">
+                </div>
+        </div>
+    </div>
+
+    <div id="loginScreen" class="fixed inset-0 bg-gray-900 z-[60] flex justify-center items-center">
+        <div class="bg-white p-10 rounded-2xl shadow-2xl w-full max-w-md">
+            <h2 class="text-3xl font-black mb-2 text-center text-gray-900">MILLION CRM</h2>
+            <p class="text-center text-gray-500 mb-8 text-sm">Boshqaruv paneliga xush kelibsiz</p>
+            <input type="text" id="loginInp" placeholder="Login" class="w-full border-2 border-gray-200 p-3 rounded-lg mb-4 outline-none focus:border-blue-600 transition">
+            <input type="password" id="passInp" placeholder="Parol" class="w-full border-2 border-gray-200 p-3 rounded-lg mb-6 outline-none focus:border-blue-600 transition">
+            <button onclick="login()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold p-3 rounded-lg transition shadow-lg">Tizimga Kirish</button>
+        </div>
+    </div>
+
+    <aside id="sidebar" class="w-64 bg-gray-900 text-white flex flex-col hidden transition-all">
+        <div class="p-6 border-b border-gray-800">
+            <h1 class="text-2xl font-black tracking-widest text-white">MILLION<span class="text-blue-500">.</span></h1>
+            <p class="text-xs text-gray-400 mt-1">Super Admin Panel</p>
+        </div>
+        <nav class="flex-1 p-4 space-y-2">
+            <button onclick="switchTab('dashboard')" id="btn-dashboard" class="w-full flex items-center gap-3 text-left px-4 py-3 rounded-lg bg-blue-600 text-white font-bold transition">📊 Bosh Sahifa</button>
+            <button onclick="switchTab('orders')" id="btn-orders" class="w-full flex items-center justify-between text-left px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white font-bold transition">🛒 Buyurtmalar <span id="newOrderBadge" class="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full hidden animate-pulse">Yangi</span></button>
+            <button onclick="switchTab('products')" id="btn-products" class="w-full flex items-center gap-3 text-left px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white font-bold transition">📦 Tovar va Bo'lim</button>
+            <button onclick="switchTab('chat')" id="btn-chat" class="w-full flex items-center gap-3 text-left px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white font-bold transition relative">💬 Jonli Chat <span id="chatDot" class="w-2.5 h-2.5 bg-green-500 rounded-full absolute right-4 hidden animate-pulse"></span></button>
+        </nav>
+        <div class="p-4 border-t border-gray-800">
+            <button onclick="logout()" class="w-full flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 rounded-lg transition">🚪 Chiqish</button>
+        </div>
+    </aside>
+
+    <main id="mainContent" class="flex-1 flex flex-col hidden h-screen overflow-hidden">
+        <header class="bg-white shadow-sm px-8 py-4 flex justify-between items-center z-10">
+            <h2 id="pageTitle" class="text-xl font-bold text-gray-800">Bosh Sahifa</h2>
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold border border-blue-200">A</div>
+                <div class="text-sm"><p class="font-bold text-gray-900 leading-none">Admin</p><p class="text-xs text-green-500">Onlayn</p></div>
+            </div>
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-8 custom-scroll">
+            
+            <div id="tab-dashboard" class="tab-content active">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4"><div class="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center text-2xl">💰</div><div><p class="text-gray-500 text-sm font-bold uppercase">Umumiy Tushum</p><p id="dashIncome" class="text-3xl font-black text-gray-900">0 s</p></div></div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4"><div class="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center text-2xl">📦</div><div><p class="text-gray-500 text-sm font-bold uppercase">Buyurtmalar</p><p id="dashOrders" class="text-3xl font-black text-gray-900">0</p></div></div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4"><div class="w-14 h-14 rounded-full bg-purple-100 flex items-center justify-center text-2xl">👥</div><div><p class="text-gray-500 text-sm font-bold uppercase">Jami Mijozlar</p><p id="dashUsers" class="text-3xl font-black text-gray-900">0</p></div></div>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><h3 class="font-bold text-gray-800 mb-4">Statistika (Soxta namuna)</h3><div class="h-64 w-full"><canvas id="salesChart"></canvas></div></div>
+            </div>
+
+            <div id="tab-orders" class="tab-content">
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="p-6 border-b bg-gray-50 flex justify-between items-center"><h3 class="font-bold text-gray-800 text-lg">Barcha Buyurtmalar</h3></div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-gray-100 text-gray-500 text-xs uppercase tracking-wider"><th class="p-4 font-bold">Mijoz / Tel</th><th class="p-4 font-bold">Manzil / Usul</th><th class="p-4 font-bold">Mahsulotlar</th><th class="p-4 font-bold">Summa</th><th class="p-4 font-bold">Status</th><th class="p-4 font-bold text-right">Vaqt</th></tr>
+                            </thead>
+                            <tbody id="ordersTableBody" class="divide-y divide-gray-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-products" class="tab-content">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-1 h-[600px] flex flex-col">
+                        <h2 class="text-lg font-bold mb-4 text-gray-900 border-b pb-2">Bo'limlar</h2>
+                        <div class="flex gap-2 mb-4"><input type="text" id="cName" placeholder="Yangi bo'lim..." class="w-full border p-2 rounded outline-none bg-gray-50"><button onclick="addCategory()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 rounded">+</button></div>
+                        <div id="adminCategoriesList" class="overflow-y-auto flex-1 space-y-2 custom-scroll pr-2"></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-2 h-[600px] flex flex-col">
+                        <h2 class="text-lg font-bold mb-4 text-gray-900 border-b pb-2">Yangi Mahsulot Qo'shish</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6 bg-gray-50 p-4 rounded-xl border">
+                            <input type="text" id="pName" placeholder="Mahsulot Nomi" class="border p-2 rounded outline-none md:col-span-2">
+                            <select id="pCat" class="border p-2 rounded outline-none md:col-span-2"></select>
+                            <input type="number" id="pPrice" placeholder="Narxi" class="border p-2 rounded outline-none md:col-span-1">
+                            <input type="number" id="pOldPrice" placeholder="Eski Narx" class="border p-2 rounded outline-none md:col-span-1">
+                            <input type="file" id="pImage" accept="image/*" class="border p-1.5 rounded bg-white text-xs cursor-pointer md:col-span-2">
+                            <textarea id="pDesc" placeholder="Mahsulot tavsifi..." class="border p-2 rounded outline-none md:col-span-4 h-16 resize-none"></textarea>
+                            <button onclick="addProduct()" class="md:col-span-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded-lg transition shadow">Bazaga Saqlash</button>
+                        </div>
+                        <h2 class="text-md font-bold mb-3 text-gray-700">Bazadagi Mahsulotlar</h2>
+                        <div id="adminProductsList" class="overflow-y-auto flex-1 space-y-2 custom-scroll pr-2"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-chat" class="tab-content h-[600px]">
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 flex h-full overflow-hidden">
+                    <div class="w-1/3 border-r bg-gray-50 flex flex-col">
+                        <div class="p-4 border-b bg-white"><h3 class="font-bold text-gray-800">Mijozlar bilan aloqa</h3></div>
+                        <div class="overflow-y-auto flex-1 custom-scroll" id="chatUsersList"><p class="text-center text-sm text-gray-400 mt-10">Mijozlar kutilyapti...</p></div>
+                    </div>
+                    <div class="w-2/3 flex flex-col bg-white">
+                        <div class="p-4 border-b bg-gray-50 shadow-sm flex items-center justify-between"><h3 class="font-bold text-blue-600" id="currentChatName">Chat tanlanmadi</h3></div>
+                        <div id="adminChatMessages" class="flex-1 p-6 overflow-y-auto flex flex-col gap-3 custom-scroll bg-gray-50/50"></div>
+                        <div class="p-4 border-t bg-white flex gap-2 hidden shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]" id="adminChatControls">
+                            <input type="text" id="adminChatInput" placeholder="Javobingizni yozing..." class="flex-1 border-2 border-gray-200 rounded-lg px-4 py-3 outline-none focus:border-blue-500 transition" onkeypress="if(event.key === 'Enter') sendAdminReply()">
+                            <button onclick="sendAdminReply()" class="bg-blue-600 hover:bg-blue-700 text-white px-8 font-bold rounded-lg shadow transition">Yuborish</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        const token = localStorage.getItem('adminToken');
+        let allProducts = [];
+
+        if(token) { document.getElementById('loginScreen').classList.add('hidden'); document.getElementById('sidebar').classList.remove('hidden'); document.getElementById('mainContent').classList.remove('hidden'); loadDashboard(); initChart(); }
+
+        function showToast(msg, type = 'success') {
+            const box = document.getElementById('toastBox'); box.innerText = msg;
+            box.className = `toast show ${type}`; setTimeout(() => box.className = 'toast', 3000);
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.add('active');
+            const titles = { 'dashboard': 'Bosh Sahifa', 'orders': 'Buyurtmalar', 'products': 'Tovar va Kategoriyalar', 'chat': 'Mijozlar bilan Chat' };
+            document.getElementById('pageTitle').innerText = titles[tabId];
+            ['dashboard', 'orders', 'products', 'chat'].forEach(id => {
+                const btn = document.getElementById('btn-' + id);
+                if(id === tabId) { btn.classList.replace('text-gray-400', 'text-white'); btn.classList.replace('hover:bg-gray-800', 'bg-blue-600'); } 
+                else { btn.classList.replace('text-white', 'text-gray-400'); btn.classList.replace('bg-blue-600', 'hover:bg-gray-800'); }
+            });
+            if(tabId === 'orders') document.getElementById('newOrderBadge').classList.add('hidden');
+            if(tabId === 'chat') document.getElementById('chatDot').classList.add('hidden');
+        }
+
+        async function login() {
+            const res = await fetch('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: document.getElementById('loginInp').value, password: document.getElementById('passInp').value }) });
+            const data = await res.json(); if(data.token) { localStorage.setItem('adminToken', data.token); location.reload(); } else showToast(data.message, 'error');
+        }
+        function logout() { localStorage.removeItem('adminToken'); location.reload(); }
+
+        async function loadDashboard() {
+            try {
+                const repRes = await (await fetch('/api/reports', { headers: { 'Authorization': 'Bearer ' + token }})).json();
+                document.getElementById('dashIncome').innerText = repRes.totalSum.toLocaleString() + " s"; document.getElementById('dashOrders').innerText = repRes.orderCount; document.getElementById('dashUsers').innerText = repRes.userCount;
+            } catch(e) {}
+            
+            const cats = await (await fetch('/api/categories')).json(); 
+            allProducts = await (await fetch('/api/products')).json();
+            
+            document.getElementById('pCat').innerHTML = '<option value="">Bo\'limni tanlang</option>' + cats.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+            document.getElementById('adminCategoriesList').innerHTML = cats.map(c => `<div class="flex justify-between items-center bg-gray-50 p-3 rounded-lg border hover:border-blue-300 transition"><span class="font-bold text-gray-700">${c.name}</span><button onclick="deleteCategory('${c._id}')" class="text-red-500 hover:bg-red-100 p-1.5 rounded transition">🗑</button></div>`).join('');
+            
+            document.getElementById('adminProductsList').innerHTML = allProducts.map(p => `
+                <div class="flex items-center gap-3 bg-white p-3 rounded-lg border shadow-sm hover:shadow transition">
+                    <img src="${p.img}" class="w-12 h-12 object-cover rounded shadow-sm border">
+                    <div class="flex-1"><p class="font-bold text-sm text-gray-800 line-clamp-1">${p.name}</p><p class="text-xs text-blue-600 font-bold">${p.price.toLocaleString()} s <span class="text-gray-400 font-normal">| ${p.category}</span></p></div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="openReviews('${p._id}')" class="bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm border border-blue-100">💬 (${p.reviews ? p.reviews.length : 0})</button>
+                        <button onclick="toggleStock('${p._id}')" class="${p.inStock ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'} px-3 py-1.5 rounded-lg text-xs font-bold w-20 shadow-sm transition">${p.inStock ? 'Sotuvda' : 'Qolmagan'}</button>
+                        <button onclick="deleteProduct('${p._id}')" class="bg-red-50 hover:bg-red-500 hover:text-white text-red-500 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm">O'chirish</button>
+                    </div>
+                </div>`).join('');
+            
+            loadOrders(); 
+        }
+
+        // --- SHARHLAR MODALI ---
+        function openReviews(productId) {
+            const p = allProducts.find(x => x._id === productId); if(!p) return;
+            const list = document.getElementById('adminReviewsList');
+            
+            if(!p.reviews || p.reviews.length === 0) {
+                list.innerHTML = `<p class="text-center text-gray-400 mt-10">Mijozlar hali sharh yozishmagan.</p>`;
+            } else {
+                list.innerHTML = p.reviews.map(r => `
+                    <div class="bg-white border rounded-xl p-4 shadow-sm">
+                        <div class="flex justify-between items-start mb-2 border-b pb-2">
+                            <div><p class="font-bold text-gray-900 text-sm">${r.author}</p><p class="text-[10px] text-gray-400">${new Date(r.date).toLocaleString()}</p></div>
+                        </div>
+                        <p class="text-sm text-gray-800 mb-3">${r.text}</p>
+                        
+                        ${r.adminReply ? `
+                            <div class="bg-blue-50 border-l-4 border-blue-500 p-3 rounded-r mt-2">
+                                <p class="text-[10px] font-bold text-blue-700 uppercase mb-1">Sizning javobingiz:</p>
+                                <p class="text-xs text-gray-800">${r.adminReply}</p>
+                            </div>
+                        ` : `
+                            <div class="flex gap-2 mt-2">
+                                <input type="text" id="replyInp_${r._id}" placeholder="Javob yozish..." class="flex-1 border p-2 rounded text-xs bg-gray-50 outline-none">
+                                <button onclick="sendReviewReply('${p._id}', '${r._id}')" class="bg-blue-600 text-white px-3 text-xs font-bold rounded">Yuborish</button>
+                            </div>
+                        `}
+                    </div>
+                `).join('');
+            }
+            document.getElementById('reviewsModal').classList.replace('hidden', 'flex');
+        }
+
+        function closeReviewsModal() { document.getElementById('reviewsModal').classList.replace('flex', 'hidden'); }
+
+        async function sendReviewReply(prodId, reviewId) {
+            const replyText = document.getElementById(`replyInp_${reviewId}`).value.trim();
+            if(!replyText) return;
+            try {
+                const res = await fetch(`/api/products/${prodId}/reviews/${reviewId}/reply`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }, body: JSON.stringify({ reply: replyText }) });
+                if(res.ok) { showToast("Javob saqlandi"); await loadDashboard(); openReviews(prodId); /* qayta chizish uchun */ }
+            } catch(e) { showToast("Xato", "error"); }
+        }
+
+        // --- ORDER & CRUD ---
+        async function loadOrders() {
+            try {
+                const res = await fetch('/api/admin/orders', { headers: { 'Authorization': 'Bearer ' + token } });
+                const orders = await res.json();
+                const tbody = document.getElementById('ordersTableBody');
+                if(orders.length === 0) return tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-gray-500">Buyurtmalar mavjud emas</td></tr>`;
+                tbody.innerHTML = orders.map(o => {
+                    const statusColors = { 'Kutilmoqda': 'bg-yellow-100 text-yellow-800', 'Yetkazilmoqda': 'bg-blue-100 text-blue-800', 'Bajarildi': 'bg-green-100 text-green-800', 'Bekor qilingan': 'bg-red-100 text-red-800' };
+                    return `
+                    <tr class="border-b hover:bg-gray-50 transition">
+                        <td class="p-4"><p class="font-bold text-gray-900">${o.customerName}</p><p class="text-xs text-gray-500">${o.customerPhone}</p></td>
+                        <td class="p-4"><p class="text-sm text-gray-800 max-w-[200px] truncate" title="${o.location}">${o.location}</p><span class="text-[10px] font-bold uppercase ${o.deliveryMethod==='pickup'?'text-purple-600':'text-blue-600'}">${o.deliveryMethod==='pickup'?'Olib ketish':'Yetkazish'}</span></td>
+                        <td class="p-4 text-xs text-gray-600">${o.cart.map(c => `• ${c.name} (${c.quantity})`).join('<br>')}</td>
+                        <td class="p-4 font-black text-blue-600">${o.totalSum.toLocaleString()} s</td>
+                        <td class="p-4">
+                            <select onchange="changeOrderStatus('${o._id}', this.value)" class="${statusColors[o.status] || 'bg-gray-100'} font-bold text-xs px-2 py-1.5 rounded outline-none cursor-pointer w-full">
+                                <option value="Kutilmoqda" ${o.status === 'Kutilmoqda' ? 'selected' : ''}>Kutilmoqda</option><option value="Yetkazilmoqda" ${o.status === 'Yetkazilmoqda' ? 'selected' : ''}>Yetkazilmoqda</option><option value="Bajarildi" ${o.status === 'Bajarildi' ? 'selected' : ''}>Bajarildi</option>
+                            </select>
+                        </td>
+                        <td class="p-4 text-right text-xs text-gray-500">${new Date(o.date).toLocaleDateString()}<br>${new Date(o.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
+                    </tr>`;
+                }).join('');
+            } catch(e) {}
+        }
+        async function changeOrderStatus(id, newStatus) { await fetch(`/api/admin/orders/${id}/status`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }, body: JSON.stringify({ status: newStatus }) }); loadDashboard(); showToast("Status o'zgardi"); }
+
+        async function addCategory() { const name = document.getElementById('cName').value; if(!name) return; await fetch('/api/categories', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }, body: JSON.stringify({ name }) }); location.reload(); }
+        async function deleteCategory(id) { if(confirm("O'chirasizmi?")) { await fetch('/api/categories/' + id, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } }); location.reload(); } }
+        async function addProduct() {
+            const name = document.getElementById('pName').value, cat = document.getElementById('pCat').value, price = document.getElementById('pPrice').value, oldPrice = document.getElementById('pOldPrice').value, desc = document.getElementById('pDesc').value, file = document.getElementById('pImage').files[0];
+            if(!name || !cat || !price) return showToast("To'ldiring!", "error");
+            const formData = new FormData(); formData.append('name', name); formData.append('category', cat); formData.append('price', price); if (oldPrice) formData.append('oldPrice', oldPrice); if (desc) formData.append('description', desc); if(file) formData.append('image', file);
+            try { const res = await fetch('/api/products', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token }, body: formData }); if(res.ok) { showToast("Qo'shildi!"); setTimeout(()=>location.reload(), 1000); } } catch(e) {}
+        }
+        async function deleteProduct(id) { if(confirm("O'chirasizmi?")) { await fetch('/api/products/' + id, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } }); location.reload(); } }
+        async function toggleStock(id) { await fetch(`/api/products/${id}/toggle-stock`, { method: 'PUT', headers: { 'Authorization': 'Bearer ' + token } }); loadDashboard(); }
+
+        // --- CHAT VA SOCKET ---
+        const socket = io(); let chats = {}; let currentChatUser = null;
+        socket.emit('getAdminChats');
+        socket.on('newOrderAlert', () => { loadDashboard(); document.getElementById('newOrderBadge').classList.remove('hidden'); showToast("Yangi buyurtma tushdi!"); });
+        socket.on('loadAllChats', (history) => { chats = history; updateChatUsersList(); });
+        socket.on('receiveClientMessage', (data) => { document.getElementById('chatDot').classList.remove('hidden'); if (!chats[data.id]) chats[data.id] = { name: data.name, messages: [] }; chats[data.id].messages.push({ sender: 'client', msg: data.msg }); updateChatUsersList(); if (currentChatUser === data.id) renderAdminMessages(data.id); });
+
+        function updateChatUsersList() {
+            const list = document.getElementById('chatUsersList'); if(Object.keys(chats).length === 0) return list.innerHTML = "<p class='text-center text-sm text-gray-400 mt-10'>Kutilmoqda...</p>";
+            list.innerHTML = Object.entries(chats).map(([id, data]) => `<div onclick="selectChatUser('${id}', '${data.name}')" class="p-4 border-b cursor-pointer transition ${currentChatUser === id ? 'bg-blue-50 border-l-4 border-blue-600' : 'hover:bg-gray-100'}"><div class="flex items-center gap-3"><div class="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold">${data.name.charAt(0).toUpperCase()}</div><div class="flex-1 overflow-hidden"><p class="font-bold text-sm text-gray-900">${data.name}</p><p class="text-xs text-gray-500 truncate mt-0.5">${data.messages.length > 0 ? data.messages[data.messages.length - 1].msg : ''}</p></div></div></div>`).reverse().join('');
+        }
+        function selectChatUser(id, name) { currentChatUser = id; document.getElementById('currentChatName').innerText = name; document.getElementById('adminChatControls').classList.remove('hidden'); updateChatUsersList(); renderAdminMessages(id); }
+        function renderAdminMessages(id) {
+            const div = document.getElementById('adminChatMessages');
+            div.innerHTML = chats[id].messages.map(i => `<div class="${i.sender==='client' ? 'bg-white border text-gray-800 self-start' : 'bg-blue-600 text-white self-end'} px-4 py-3 rounded-2xl text-sm max-w-[80%] shadow-sm ${i.sender==='client'?'rounded-tl-none':'rounded-tr-none'}">${i.msg}</div>`).join(''); div.scrollTop = div.scrollHeight;
+        }
+        function sendAdminReply() {
+            const msg = document.getElementById('adminChatInput').value.trim(); if (!msg || !currentChatUser) return;
+            chats[currentChatUser].messages.push({ sender: 'admin', msg }); renderAdminMessages(currentChatUser);
+            socket.emit('adminReply', { clientId: currentChatUser, msg }); document.getElementById('adminChatInput').value = '';
+        }
+
+        // CHART.JS
+        function initChart() {
+            const ctx = document.getElementById('salesChart').getContext('2d');
+            new Chart(ctx, { type: 'line', data: { labels: ['Dush', 'Sesh', 'Chor', 'Pay', 'Juma', 'Shan', 'Yak'], datasets: [{ label: 'Savdo hajmi', data: [1200, 1900, 3000, 5000, 2400, 3800, 4200], borderColor: '#2563eb', backgroundColor: 'rgba(37, 99, 235, 0.1)', borderWidth: 3, fill: true, tension: 0.4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
+        }
+    </script>
+</body>
+</html>

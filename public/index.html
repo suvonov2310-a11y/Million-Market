@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Million Market</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f3f4f6; overflow-x: hidden; }
+        #splash-screen { position: fixed; inset: 0; background: linear-gradient(135deg, #2563eb, #1d4ed8); display: flex; align-items: center; justify-content: center; z-index: 100; transition: opacity 0.5s; }
+        .splash-logo { font-size: 2.5rem; font-weight: 900; color: white; letter-spacing: 0.1em; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        .product-card { transition: all 0.3s; cursor: pointer; } .product-card:hover { transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        .heart-btn { transition: transform 0.2s; } .heart-btn:active { transform: scale(1.3); }
+        .liked { color: #ef4444 !important; }
+        .category-scroll::-webkit-scrollbar { display: none; }
+        #cartOverlay, #productOverlay { backdrop-filter: blur(2px); transition: opacity 0.3s; }
+        #cartDrawer { transition: transform 0.3s ease-in-out; }
+        .drawer-open { transform: translateX(0) !important; }
+        /* Toast Notification Styles */
+        .toast { visibility: hidden; min-width: 250px; background-color: #333; color: #fff; text-align: center; border-radius: 8px; padding: 16px; position: fixed; z-index: 1000; left: 50%; bottom: 30px; transform: translateX(-50%); opacity: 0; transition: opacity 0.3s, bottom 0.3s; box-shadow: 0 10px 15px rgba(0,0,0,0.2); font-weight: bold;}
+        .toast.show { visibility: visible; bottom: 50px; opacity: 1; }
+        .toast.success { background-color: #10b981; } .toast.error { background-color: #ef4444; }
+    </style>
+</head>
+<body>
+    <div id="splash-screen"><div class="splash-logo">MILLION MARKET</div></div>
+    <div id="toastBox" class="toast">Xabar</div>
+
+    <nav class="bg-white shadow-sm sticky top-0 z-40">
+        <div class="bg-gray-100 text-xs text-gray-500 py-1 px-4 flex justify-end gap-3 font-medium">
+            <button onclick="changeLang('uz')" id="lang-uz" class="hover:text-blue-600 font-bold">UZ</button> | 
+            <button onclick="changeLang('ru')" id="lang-ru" class="hover:text-blue-600">RU</button>
+        </div>
+        <div class="container mx-auto px-4 py-3 flex flex-wrap md:flex-nowrap justify-between items-center gap-3">
+            <h1 class="text-2xl font-black text-blue-600 cursor-pointer" onclick="location.reload()">MILLION</h1>
+            <div class="w-full md:flex-1 order-3 md:order-2 flex gap-2">
+                <input type="text" id="searchInput" onkeyup="applyFilters()" placeholder="Mahsulot qidirish..." class="w-full border p-2 pl-4 rounded-lg bg-gray-50 text-sm outline-none focus:border-blue-500">
+            </div>
+            <div class="flex items-center gap-4 order-2 md:order-3">
+                <button onclick="toggleFavoritesMode()" class="text-gray-400 hover:text-red-500 text-2xl relative">❤️ <span id="favCount" class="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] rounded-full px-1.5 hidden">0</span></button>
+                <button onclick="location.href='/profile.html'" class="text-gray-600 hover:text-blue-600 font-bold flex items-center gap-1 text-sm bg-gray-100 px-3 py-2 rounded-lg transition">👤 <span id="text-profile">Profil</span></button>
+                <button onclick="toggleCart()" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold flex gap-2 text-sm hover:bg-blue-700"><span id="text-cart">Savat</span> <span id="cartCount" class="bg-white text-blue-600 rounded-full px-2">0</span></button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto px-4 py-4 flex flex-col md:flex-row gap-6">
+        <aside class="w-full md:w-1/4">
+            <div class="bg-white p-4 rounded-xl shadow-sm md:sticky md:top-24">
+                <h3 class="font-bold mb-3 border-b pb-2 hidden md:block" id="text-cats">Kategoriyalar</h3>
+                <ul id="categoryList" class="category-scroll flex md:flex-col gap-2 overflow-x-auto whitespace-nowrap md:whitespace-normal pb-2 md:pb-0"></ul>
+            </div>
+        </aside>
+        <main class="w-full md:w-3/4">
+            <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4" id="productsContainer"></div>
+            <div class="flex justify-center gap-2 mt-8" id="paginationControls"></div>
+        </main>
+    </div>
+
+    <div id="productOverlay" class="fixed inset-0 bg-black bg-opacity-70 z-50 hidden opacity-0 transition-opacity flex items-center justify-center p-4" onclick="if(event.target === this) closeProductModal()">
+        <div id="productModal" class="bg-white w-full max-w-4xl rounded-2xl shadow-2xl flex flex-col md:flex-row overflow-hidden max-h-[90vh] transform scale-95 transition-transform duration-300 relative">
+            <button onclick="closeProductModal()" class="absolute top-3 right-4 text-gray-400 hover:text-red-500 text-3xl font-bold z-10 bg-white rounded-full w-8 h-8 flex items-center justify-center shadow">&times;</button>
+            <div class="w-full md:w-1/2 bg-gray-50 flex items-center justify-center border-r"><img id="detailImg" src="" class="w-full h-64 md:h-full object-contain p-4"></div>
+            <div class="w-full md:w-1/2 flex flex-col h-full">
+                <div class="p-6 overflow-y-auto flex-1">
+                    <span id="detailCat" class="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded mb-2 inline-block"></span>
+                    <h2 id="detailName" class="text-2xl font-bold text-gray-900 mb-2 leading-tight"></h2>
+                    <div class="flex items-center gap-3 mb-4"><p id="detailPrice" class="text-3xl font-black text-blue-600"></p><p id="detailOldPrice" class="text-lg line-through text-gray-400"></p></div>
+                    <p id="detailDesc" class="text-sm text-gray-600 mb-6 leading-relaxed border-b pb-4"></p>
+                    <div class="flex gap-3 mb-6"><button id="detailAddBtn" class="flex-1 bg-yellow-400 hover:bg-yellow-500 font-bold py-3 rounded-xl text-yellow-900 shadow">Savatga</button><button id="detailFavBtn" class="w-14 h-12 flex items-center justify-center rounded-xl text-2xl">❤️</button></div>
+                    <div>
+                        <h3 class="font-bold text-gray-800 mb-3 text-lg" id="text-reviews">💬 Sharhlar (<span id="reviewCount">0</span>)</h3>
+                        <div id="reviewsList" class="space-y-3 mb-4 max-h-40 overflow-y-auto pr-2"></div>
+                        <div class="flex gap-2"><input type="text" id="reviewInput" placeholder="Fikringizni yozing..." class="flex-1 border p-2 rounded-lg text-sm bg-gray-50"><button id="submitReviewBtn" class="bg-blue-600 text-white px-4 font-bold rounded-lg text-sm">Yuborish</button></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="cartOverlay" class="fixed inset-0 bg-black bg-opacity-60 z-40 hidden opacity-0" onclick="toggleCart()"></div>
+    <div id="cartDrawer" class="fixed top-0 right-0 w-full md:w-[450px] h-full bg-white shadow-2xl z-50 transform translate-x-full flex flex-col">
+        <div class="bg-white p-5 border-b flex justify-between items-center shadow-sm z-10"><h2 class="text-xl font-bold" id="text-cart-title">🛒 Savatcha</h2><button onclick="toggleCart()" class="text-gray-400 hover:text-red-500 text-3xl leading-none">&times;</button></div>
+        <div id="cartItems" class="flex-1 overflow-y-auto p-5 divide-y"></div>
+        <div class="bg-gray-50 p-5 border-t">
+            <div class="bg-blue-100 p-4 rounded-xl mb-4 text-blue-900"><p class="text-base font-bold flex justify-between"><span id="text-total">Umumiy Summa:</span> <span id="cartTotal" class="text-xl">0 s</span></p></div>
+            <div class="mb-4">
+                <h3 class="text-sm font-bold text-gray-700 mb-2" id="text-delivery">Qabul qilish usuli:</h3>
+                <div class="flex gap-4 bg-white p-3 rounded-xl border"><label class="flex items-center gap-2 text-sm"><input type="radio" name="deliveryType" value="delivery" checked onchange="toggleDeliveryMode()" class="w-4 h-4"><span id="text-del">🚚 Yetkazish</span></label><label class="flex items-center gap-2 text-sm"><input type="radio" name="deliveryType" value="pickup" onchange="toggleDeliveryMode()" class="w-4 h-4"><span id="text-pick">🏃‍♂️ O'zim olam</span></label></div>
+            </div>
+            <input type="text" id="userName" placeholder="Ism sharifingiz" class="w-full border p-3 rounded-xl mb-3 text-sm bg-white outline-none">
+            <input type="text" id="userPhone" placeholder="+998 90 123 45 67" class="w-full border p-3 rounded-xl mb-3 text-sm bg-white outline-none">
+            <input type="text" id="userLocation" placeholder="Manzil (Shahar, tuman...)" class="w-full border p-3 rounded-xl mb-4 text-sm bg-white outline-none">
+            <button onclick="sendOrder()" id="orderBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition shadow">Tasdiqlash</button>
+        </div>
+    </div>
+
+    <div id="liveChatWidget" class="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+        <div id="chatBox" class="hidden bg-white w-80 h-[400px] rounded-2xl shadow-2xl border flex flex-col mb-4 overflow-hidden">
+            <div class="bg-blue-600 text-white p-4 font-bold flex justify-between items-center z-10"><div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span><span>Jonli chat</span></div><button onclick="toggleLiveChat()" class="text-white text-2xl leading-none">&times;</button></div>
+            <div id="chatMessages" class="flex-1 p-4 overflow-y-auto flex flex-col gap-3 text-sm bg-gray-50"><div class="bg-blue-100 text-blue-900 self-start px-4 py-2 rounded-2xl rounded-tl-none max-w-[85%]">Assalomu alaykum! Savollaringiz bormi?</div></div>
+            <div class="p-3 border-t bg-white flex gap-2"><input type="text" id="chatInput" placeholder="Yozing..." class="flex-1 border rounded-full px-4 py-2 outline-none text-sm" onkeypress="if(event.key === 'Enter') sendChatMessage()"><button onclick="sendChatMessage()" class="bg-blue-600 text-white w-10 h-10 rounded-full flex justify-center items-center">➤</button></div>
+        </div>
+        <button onclick="toggleLiveChat()" class="bg-blue-600 text-white w-14 h-14 rounded-full shadow-lg flex justify-center items-center text-2xl hover:scale-110 transition-transform">💬</button>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // Tarjimalar lug'ati
+        const dict = { 
+            uz: { search: "Mahsulot qidirish...", profile: "Profil", cart: "Savat", cats: "Kategoriyalar", all: "Barchasi", empty: "Hech narsa topilmadi", addBtn: "Savatga", out: "Qolmagan", added: "Qo'shildi", cTitle: "🛒 Savatcha", tot: "Umumiy Summa:", del: "Qabul qilish usuli:", d1: "🚚 Yetkazish", d2: "🏃‍♂️ O'zim olam", nameP: "Ism sharifingiz", locP: "Manzil (Shahar, tuman...)", oBtn: "Tasdiqlash", rTitle: "💬 Sharhlar", rPl: "Fikringizni yozing...", rBtn: "Yuborish", adminReply: "Do'kon javobi:" }, 
+            ru: { search: "Поиск товаров...", profile: "Профиль", cart: "Корзина", cats: "Категории", all: "Все", empty: "Ничего не найдено", addBtn: "В корзину", out: "Нет в наличии", added: "Добавлено", cTitle: "🛒 Корзина", tot: "Итого:", del: "Способ получения:", d1: "🚚 Доставка", d2: "🏃‍♂️ Самовывоз", nameP: "Ваше имя", locP: "Адрес (Город, район...)", oBtn: "Оформить заказ", rTitle: "💬 Отзывы", rPl: "Напишите отзыв...", rBtn: "Отправить", adminReply: "Ответ магазина:" } 
+        };
+        let lang = localStorage.getItem('siteLang') || 'uz'; 
+        
+        let products = [], categoriesData = [], cart = [], favorites = JSON.parse(localStorage.getItem('favs')) || [];
+        let currentCategory = 'Barchasi', showOnlyFavorites = false, currentPage = 1, itemsPerPage = 8, filteredProducts = [];
+        let userName = localStorage.getItem('userName'), userPhoneNum = localStorage.getItem('userPhoneNum');
+
+        window.onload = () => { applyLangUI(); setTimeout(() => { document.getElementById('splash-screen').style.opacity = '0'; setTimeout(() => document.getElementById('splash-screen').style.display = 'none', 500); initData(); if(userName) document.getElementById('text-profile').innerText = userName; }, 1500); };
+
+        function showToast(msg, type = 'success') {
+            const box = document.getElementById('toastBox'); box.innerText = msg;
+            box.className = `toast show ${type}`;
+            setTimeout(() => box.className = 'toast', 3000);
+        }
+
+        function changeLang(l) { lang = l; localStorage.setItem('siteLang', l); applyLangUI(); renderCategories(); applyFilters(); renderCartItems(); }
+        function applyLangUI() {
+            const d = dict[lang];
+            document.getElementById('lang-uz').className = lang === 'uz' ? 'text-blue-600 font-bold' : 'hover:text-blue-600';
+            document.getElementById('lang-ru').className = lang === 'ru' ? 'text-blue-600 font-bold' : 'hover:text-blue-600';
+            document.getElementById('searchInput').placeholder = d.search; document.getElementById('text-profile').innerText = userName || d.profile;
+            document.getElementById('text-cart').innerText = d.cart; document.getElementById('text-cats').innerText = d.cats;
+            document.getElementById('text-cart-title').innerText = d.cTitle; document.getElementById('text-total').innerText = d.tot;
+            document.getElementById('text-delivery').innerText = d.del; document.getElementById('text-del').innerText = d.d1; document.getElementById('text-pick').innerText = d.d2;
+            document.getElementById('userName').placeholder = d.nameP; document.getElementById('userLocation').placeholder = d.locP;
+            document.getElementById('orderBtn').innerText = d.oBtn; document.getElementById('reviewInput').placeholder = d.rPl; document.getElementById('submitReviewBtn').innerText = d.rBtn;
+        }
+
+        async function initData() { categoriesData = await (await fetch('/api/categories')).json(); products = await (await fetch('/api/products')).json(); renderCategories(); updateFavUI(); applyFilters(); }
+
+        function renderCategories() {
+            const catList = document.getElementById('categoryList');
+            catList.innerHTML = `<button onclick="setCategory('Barchasi')" class="w-full text-left px-4 py-2 rounded mb-1 text-sm ${currentCategory === 'Barchasi' ? 'bg-blue-100 text-blue-600 font-bold' : 'bg-gray-100 hover:bg-gray-200'}">${dict[lang].all}</button>`;
+            categoriesData.forEach(c => catList.innerHTML += `<button onclick="setCategory('${c.name}')" class="w-full text-left px-4 py-2 rounded mb-1 text-sm ${currentCategory === c.name ? 'bg-blue-100 text-blue-600 font-bold' : 'bg-gray-100 hover:bg-gray-200'}">${c.name}</button>`);
+        }
+
+        function setCategory(cat) { currentCategory = cat; showOnlyFavorites = false; currentPage = 1; renderCategories(); applyFilters(); }
+        function toggleFavoritesMode() { showOnlyFavorites = !showOnlyFavorites; currentCategory = 'Barchasi'; currentPage = 1; renderCategories(); applyFilters(); }
+
+        function applyFilters() {
+            filteredProducts = products;
+            if (showOnlyFavorites) filteredProducts = filteredProducts.filter(p => favorites.includes(p._id));
+            else if (currentCategory !== 'Barchasi') filteredProducts = filteredProducts.filter(p => p.category === currentCategory);
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            if (search) filteredProducts = filteredProducts.filter(p => p.name.toLowerCase().includes(search));
+            renderPaginated();
+        }
+
+        function renderPaginated() {
+            const start = (currentPage - 1) * itemsPerPage; const paginatedItems = filteredProducts.slice(start, start + itemsPerPage);
+            const container = document.getElementById('productsContainer');
+            if(paginatedItems.length === 0) return container.innerHTML = `<div class="col-span-full text-center py-10 text-gray-500 font-bold">${dict[lang].empty}</div>`;
+            
+            container.innerHTML = paginatedItems.map(p => `
+                <div class="product-card bg-white rounded-xl overflow-hidden border flex flex-col relative shadow-sm" onclick="openProductModal('${p._id}')">
+                    <button onclick="event.stopPropagation(); toggleFav('${p._id}', this)" class="heart-btn absolute top-2 right-2 text-2xl text-gray-300 z-10 ${favorites.includes(p._id) ? 'liked' : ''}">❤️</button>
+                    <img src="${p.img}" class="w-full h-36 md:h-48 object-cover border-b">
+                    <div class="p-3 md:p-4 flex-1 flex flex-col justify-between">
+                        <div><h3 class="text-xs md:text-sm font-medium line-clamp-2 mb-1">${p.name}</h3><p class="text-base md:text-lg font-bold text-gray-900">${p.oldPrice ? `<del class="text-xs text-gray-400">${p.oldPrice}</del>` : ''} ${p.price.toLocaleString()} s</p></div>
+                        <div class="mt-3">${p.inStock === false ? `<button onclick="event.stopPropagation()" disabled class="w-full bg-gray-300 text-gray-600 font-bold py-1.5 rounded text-sm cursor-not-allowed">${dict[lang].out}</button>` : `<button onclick="event.stopPropagation(); addToCart('${p._id}', this)" class="w-full bg-yellow-400 hover:bg-yellow-500 font-bold py-1.5 rounded text-sm text-yellow-900">${dict[lang].addBtn}</button>`}</div>
+                    </div>
+                </div>`).join('');
+            
+            const totalPages = Math.ceil(filteredProducts.length / itemsPerPage); let html = '';
+            for(let i=1; i<=totalPages; i++) html += `<button onclick="currentPage=${i}; renderPaginated()" class="px-3 py-1 mx-0.5 rounded border text-sm ${i === currentPage ? 'bg-blue-600 text-white' : 'bg-white'}">${i}</button>`;
+            document.getElementById('paginationControls').innerHTML = totalPages > 1 ? html : '';
+        }
+
+        // --- MAHSULOT MODALI VA SHARHLAR ---
+        function openProductModal(id) {
+            const p = products.find(x => x._id === id); if(!p) return;
+            document.getElementById('detailImg').src = p.img; document.getElementById('detailName').innerText = p.name; document.getElementById('detailCat').innerText = p.category;
+            document.getElementById('detailPrice').innerText = p.price.toLocaleString() + " s"; document.getElementById('detailOldPrice').innerText = p.oldPrice ? p.oldPrice.toLocaleString() + " s" : "";
+            document.getElementById('detailDesc').innerText = p.description || "";
+            
+            const addBtn = document.getElementById('detailAddBtn');
+            if(p.inStock === false) { addBtn.innerText = dict[lang].out; addBtn.className = "flex-1 bg-gray-300 text-gray-500 font-bold py-3 rounded-xl cursor-not-allowed"; addBtn.onclick = null; } 
+            else { addBtn.innerText = dict[lang].addBtn; addBtn.className = "flex-1 bg-yellow-400 hover:bg-yellow-500 font-bold py-3 rounded-xl text-yellow-900 shadow"; addBtn.onclick = () => addToCart(p._id, addBtn); }
+
+            const favBtn = document.getElementById('detailFavBtn');
+            favBtn.className = `w-14 h-12 flex items-center justify-center rounded-xl text-2xl ${favorites.includes(p._id) ? 'bg-red-50 text-red-500' : 'bg-gray-100 text-gray-400'}`;
+            favBtn.onclick = () => { toggleFav(p._id, null); favBtn.className = `w-14 h-12 flex items-center justify-center rounded-xl text-2xl ${favorites.includes(p._id) ? 'bg-red-50 text-red-500' : 'bg-gray-100 text-gray-400'}`; applyFilters(); };
+
+            renderReviews(p); document.getElementById('submitReviewBtn').onclick = () => submitReview(p._id);
+            const overlay = document.getElementById('productOverlay'), modal = document.getElementById('productModal');
+            overlay.classList.remove('hidden'); setTimeout(() => { overlay.style.opacity = '1'; modal.classList.replace('scale-95', 'scale-100'); }, 10);
+        }
+
+        function closeProductModal() { const overlay = document.getElementById('productOverlay'), modal = document.getElementById('productModal'); overlay.style.opacity = '0'; modal.classList.replace('scale-100', 'scale-95'); setTimeout(() => overlay.classList.add('hidden'), 300); }
+        
+        function renderReviews(product) {
+            const list = document.getElementById('reviewsList'); document.getElementById('reviewCount').innerText = product.reviews ? product.reviews.length : 0;
+            document.getElementById('text-reviews').innerHTML = `💬 ${dict[lang].rTitle.split(' ')[1]} (<span id="reviewCount">${product.reviews ? product.reviews.length : 0}</span>)`;
+            if(!product.reviews || product.reviews.length === 0) { list.innerHTML = `<p class='text-sm text-gray-400'>${dict[lang].empty}</p>`; return; }
+            
+            // Sharhlar ro'yxati (Admin javobi bo'lsa uni alohida ko'rsatish)
+            list.innerHTML = product.reviews.map(r => `
+                <div class="bg-gray-50 p-3 rounded-lg border mb-2">
+                    <p class="text-xs font-bold text-gray-700 mb-1">${r.author} <span class="text-gray-400 font-normal ml-2">${new Date(r.date).toLocaleDateString()}</span></p>
+                    <p class="text-sm text-gray-800">${r.text}</p>
+                    ${r.adminReply ? `
+                        <div class="mt-2 bg-blue-50 border-l-4 border-blue-500 p-2 rounded-r">
+                            <p class="text-[10px] font-bold text-blue-700 uppercase">${dict[lang].adminReply}</p>
+                            <p class="text-xs text-gray-800">${r.adminReply}</p>
+                        </div>
+                    ` : ''}
+                </div>`).join('');
+        }
+
+        async function submitReview(productId) {
+            const input = document.getElementById('reviewInput'), text = input.value.trim(); if(!text) return;
+            try {
+                const res = await fetch(`/api/products/${productId}/reviews`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ author: userName || (lang==='uz'?'Mijoz':'Клиент'), text: text }) });
+                if(res.ok) { const updatedProduct = await res.json(); const index = products.findIndex(p => p._id === productId); if(index !== -1) products[index] = updatedProduct; renderReviews(updatedProduct); input.value = ''; showToast(lang==='uz'?'Sharh yuborildi':'Отзыв отправлен');}
+            } catch(e) { showToast('Xatolik!', 'error'); }
+        }
+
+        function toggleFav(id, btn) { favorites.includes(id) ? favorites = favorites.filter(f => f !== id) : favorites.push(id); localStorage.setItem('favs', JSON.stringify(favorites)); if(btn) btn.classList.toggle('liked'); updateFavUI(); }
+        function updateFavUI() { document.getElementById('favCount').innerText = favorites.length; document.getElementById('favCount').style.display = favorites.length > 0 ? 'block' : 'none'; }
+
+        // --- SAVAT ---
+        function toggleCart() { const drawer = document.getElementById('cartDrawer'), overlay = document.getElementById('cartOverlay'); if(drawer.classList.contains('drawer-open')) { drawer.classList.remove('drawer-open'); overlay.style.opacity = '0'; setTimeout(() => overlay.classList.add('hidden'), 300); } else { renderCartItems(); overlay.classList.remove('hidden'); setTimeout(() => { overlay.style.opacity = '1'; drawer.classList.add('drawer-open'); }, 10); } }
+        function addToCart(id, btn) { const p = products.find(x => x._id === id), ext = cart.find(c => c._id === id); ext ? ext.quantity += 1 : cart.push({...p, quantity: 1}); document.getElementById('cartCount').innerText = cart.length; if(btn) { const t = btn.innerText; btn.innerText = dict[lang].added; showToast(dict[lang].added); setTimeout(() => btn.innerText = t, 1000); } }
+        function decreaseQty(id) { const i = cart.findIndex(c => c._id === id); if (i !== -1) { cart[i].quantity > 1 ? cart[i].quantity -= 1 : cart.splice(i, 1); document.getElementById('cartCount').innerText = cart.length; renderCartItems(); } }
+        function increaseQty(id) { addToCart(id, null); renderCartItems(); }
+        function renderCartItems() {
+            let total = 0;
+            document.getElementById('cartItems').innerHTML = cart.map(c => { total += c.price * c.quantity; return `<div class="py-4 flex justify-between items-center gap-3"><img src="${c.img}" class="w-14 h-14 object-cover rounded-lg border"><div class="flex-1"><span class="font-medium text-sm">${c.name}</span><b class="text-blue-600 text-sm block mt-1">${(c.price * c.quantity).toLocaleString()} s</b></div><div class="flex items-center border rounded bg-gray-50"><button onclick="decreaseQty('${c._id}')" class="px-3 py-1 border-r">-</button><span class="w-8 text-center text-sm font-bold">${c.quantity}</span><button onclick="increaseQty('${c._id}')" class="px-3 py-1 border-l">+</button></div></div>`; }).join('') || `<div class="flex justify-center items-center h-full text-gray-400 font-bold">${dict[lang].empty}</div>`;
+            document.getElementById('cartTotal').innerText = `${total.toLocaleString()} s`; document.getElementById('cartDrawer').dataset.total = total;
+            
+            if(userName) { document.getElementById('userName').value = userName; document.getElementById('userPhone').value = userPhoneNum; }
+        }
+        function toggleDeliveryMode() { const isPickup = document.querySelector('input[name="deliveryType"]:checked').value === 'pickup', loc = document.getElementById('userLocation'); isPickup ? (loc.style.display = 'none', loc.value = '') : loc.style.display = 'block'; }
+        
+        async function sendOrder() {
+            const method = document.querySelector('input[name="deliveryType"]:checked').value, name = document.getElementById('userName').value, phone = document.getElementById('userPhone').value, location = document.getElementById('userLocation').value, finalTotal = document.getElementById('cartDrawer').dataset.total || 0;
+            if(!name || !phone || cart.length === 0) return showToast(lang==='uz'?"Ma'lumotlarni to'ldiring!":"Заполните данные!", 'error');
+            document.getElementById('orderBtn').innerText = "...";
+            try { 
+                await fetch('/api/order', { method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': localStorage.getItem('userToken') ? 'Bearer ' + localStorage.getItem('userToken') : ''}, body: JSON.stringify({ cart, fullName: name, phone, location: method === 'delivery' ? location : (lang==='uz'?"O'zi olib ketadi":"Самовывоз"), deliveryMethod: method, totalSum: Number(finalTotal) }) }); 
+                showToast(lang==='uz'?"Buyurtma qabul qilindi!":"Заказ принят!"); cart = []; document.getElementById('cartCount').innerText = 0; toggleCart(); 
+            } catch (e) { showToast("Xato!", "error"); }
+            document.getElementById('orderBtn').innerText = dict[lang].oBtn;
+        }
+
+        // --- CHAT ---
+        const socket = io();
+        function toggleLiveChat() { document.getElementById('chatBox').classList.toggle('hidden'); }
+        function sendChatMessage() {
+            const input = document.getElementById('chatInput'); const msg = input.value.trim(); if (!msg) return;
+            const msgsDiv = document.getElementById('chatMessages'); msgsDiv.innerHTML += `<div class="bg-blue-600 text-white self-end px-4 py-2 rounded-2xl rounded-tr-none max-w-[85%]">${msg}</div>`; msgsDiv.scrollTop = msgsDiv.scrollHeight;
+            socket.emit('clientMessage', { msg: msg, name: userName || (lang==='uz'?'Mehmon':'Гость') }); input.value = '';
+        }
+        socket.on('receiveAdminMessage', (data) => {
+            const msgsDiv = document.getElementById('chatMessages'); msgsDiv.innerHTML += `<div class="bg-blue-100 text-blue-900 self-start px-4 py-2 rounded-2xl rounded-tl-none max-w-[85%]">${data.msg}</div>`; msgsDiv.scrollTop = msgsDiv.scrollHeight;
+            if(document.getElementById('chatBox').classList.contains('hidden')) toggleLiveChat();
+        });
+    </script>
+</body>
+</html>
